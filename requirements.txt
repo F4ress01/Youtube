@@ -1,6 +1,7 @@
+edge-tts>=6.1.12
+gTTS
 google-api-python-client
 google-auth-oauthlib
 google-auth-httplib2
-edge-tts
 moviepy==1.0.3
 numpy
