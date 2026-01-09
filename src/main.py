@@ -7,23 +7,18 @@ from uploader import upload_to_youtube
 def is_within_window():
     if os.getenv("TEST_MODE", "false").lower() == "true":
         return True
-    
-    # Polska strefa czasowa (UTC+1 zimą)
-    poland_tz = timezone(timedelta(hours=1))
+    poland_tz = timezone(timedelta(hours=1)) # UTC+1
     now = datetime.now(poland_tz)
-    
     allowed_hours = [0, 10, 20]
-    print(f"[TIME] Local Poland Time: {now.strftime('%H:%M')}")
-    
+    print(f"[TIME] Poland Time: {now.strftime('%H:%M')}")
     if now.hour in allowed_hours and now.minute <= 15:
         return True
     return False
 
 def main():
     if not is_within_window():
-        print("[SKIP] Waiting for the next 00:00, 10:00 or 20:00 slot.")
+        print("[SKIP] Waiting for the next slot (00:00, 10:00, 20:00).")
         return
-
     try:
         data = generate_content()
         video_path = create_video(data)
