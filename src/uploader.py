@@ -17,9 +17,9 @@ def get_service():
 
 def upload_to_youtube(file_path, data):
     youtube = get_service()
-    title = data['title'] if "#shorts" in data['title'].lower() else data['title'] + " #shorts"
+    title = data['title']
     body = {
-        "snippet": {"title": title, "description": f"{data['script']}\n\n#shorts #facts", "categoryId": "27"},
+        "snippet": {"title": title, "description": data['script'], "categoryId": "27"},
         "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False}
     }
     insert_request = youtube.videos().insert(
@@ -28,11 +28,5 @@ def upload_to_youtube(file_path, data):
     )
     res = None
     while res is None:
-        status, res = insert_request.next_chunk()
-    
-    video_id = res['id']
-    print("-" * 30)
-    print(f"[SUCCESS] Video ID: {video_id}")
-    print(f"[URL] https://www.youtube.com/shorts/{video_id}")
-    print("-" * 30)
-    return video_id
+        _, res = insert_request.next_chunk()
+    print(f"[SUCCESS] Video URL: https://www.youtube.com/shorts/{res['id']}")
