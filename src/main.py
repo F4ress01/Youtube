@@ -6,19 +6,16 @@ from uploader import upload_to_youtube
 
 def is_within_window():
     if os.getenv("TEST_MODE", "false").lower() == "true":
-        print("[INFO] TEST_MODE enabled.")
         return True
     now = datetime.now(timezone.utc)
-    if now.hour in [0, 10, 20] and now.minute <= 5:
-        return True
-    return False
+    return now.hour in [0, 10, 20] and now.minute <= 5
 
 def main():
     start = datetime.now(timezone.utc)
     print(f"--- Cycle Start: {start.strftime('%Y-%m-%d %H:%M:%S UTC')} ---")
     
     if not is_within_window():
-        print(f"[SKIP] Outside of schedule.")
+        print("[SKIP] Outside schedule.")
         return
 
     try:

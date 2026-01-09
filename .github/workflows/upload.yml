@@ -47,5 +47,5 @@ jobs:
           git config --local user.email "bot@github.com"
           git config --local user.name "ShortsBot"
           git add assets/used_ids.txt
-          git commit -m "Update facts history [skip ci]" || echo "No changes"
+          git commit -m "Update history [skip ci]" || echo "No changes"
           git push
