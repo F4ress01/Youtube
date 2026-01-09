@@ -24,7 +24,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11' # Zmiana z 3.9 na 3.11
+          python-version: '3.11'
           cache: 'pip'
 
       - name: Install FFmpeg
@@ -34,9 +34,13 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore Secrets
+        env:
+          # Przekazujemy sekrety przez zmienne środowiskowe, aby zachować cudzysłowy
+          TOKEN_DATA: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+          CLIENT_DATA: ${{ secrets.CLIENT_SECRETS_JSON }}
         run: |
-          echo "${{ secrets.YOUTUBE_TOKEN_JSON }}" > token.json
-          echo "${{ secrets.CLIENT_SECRETS_JSON }}" > client_secrets.json
+          echo "$TOKEN_DATA" > token.json
+          echo "$CLIENT_DATA" > client_secrets.json
 
       - name: Run Bot
         env:
