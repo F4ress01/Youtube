@@ -25,18 +25,28 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y ffmpeg fonts-quicksand
-      - name: Install Python Deps
-        run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 edge-tts requests gTTS numpy
+      - name: Install Python Dependencies
+        run: |
+          pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 edge-tts requests gTTS numpy tiktok-uploader
+          # Instalacja przeglądarki dla TikToka
+          python -m playwright install chromium
+          python -m playwright install-deps chromium
+
       - name: Restore Secrets
         env:
           TOKEN_DATA: ${{ secrets.YOUTUBE_TOKEN_JSON }}
           CLIENT_DATA: ${{ secrets.CLIENT_SECRETS_JSON }}
+          TIKTOK_SESSION_ID: ${{ secrets.TIKTOK_SESSION_ID }}
         run: |
           echo "$TOKEN_DATA" > token.json
           echo "$CLIENT_DATA" > client_secrets.json
+          # Tworzymy plik cookies dla TikToka
+          echo '[{"name": "sessionid", "value": "'$TIKTOK_SESSION_ID'", "domain": ".tiktok.com", "path": "/"}]' > tiktok_cookies.json
+
       - name: Run Bot
         env:
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
+          TIKTOK_SESSION_ID: ${{ secrets.TIKTOK_SESSION_ID }}
         run: python src/main.py
       - name: Commit History
         run: |
