@@ -1,34 +1,56 @@
-import os
-import json
-import google.oauth2.credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-from google.auth.transport.requests import Request
+name: YouTube Shorts Automation
 
-def get_service():
-    with open('token.json', 'r') as f:
-        token_data = json.load(f)
-    creds = google.oauth2.credentials.Credentials.from_authorized_user_info(token_data)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            with open('token.json', 'w') as f: f.write(creds.to_json())
-    return build("youtube", "v3", credentials=creds)
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Set true to upload now'
+        default: 'false'
 
-def upload_to_youtube(file_path, data):
-    youtube = get_service()
-    title = data['title'] if "#shorts" in data['title'].lower() else data['title'] + " #shorts"
-    body = {
-        "snippet": {"title": title, "description": data['script'] + "\n#shorts", "categoryId": "27"},
-        "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False}
-    }
-    insert_request = youtube.videos().insert(
-        part="snippet,status", body=body,
-        media_body=MediaFileUpload(file_path, chunksize=-1, resumable=True)
-    )
-    res = None
-    while res is None:
-        _, res = insert_request.next_chunk()
-    print("-" * 30)
-    print(f"[SUCCESS] URL: https://www.youtube.com/shorts/{res['id']}")
-    print("-" * 30)
+jobs:
+  automation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install System Deps
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg fonts-quicksand
+      - name: Install Python Deps
+        run: |
+          # Dodajemy playwright do instalacji
+          pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 edge-tts requests gTTS numpy tiktok-uploader playwright
+          # Teraz instalacja przeglądarki zadziała
+          python -m playwright install chromium
+          python -m playwright install-deps chromium
+      - name: Restore Secrets
+        env:
+          TOKEN_DATA: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+          CLIENT_DATA: ${{ secrets.CLIENT_SECRETS_JSON }}
+          TIKTOK_SESSION_ID: ${{ secrets.TIKTOK_SESSION_ID }}
+        run: |
+          echo "$TOKEN_DATA" > token.json
+          echo "$CLIENT_DATA" > client_secrets.json
+          # Tworzymy plik cookies dla biblioteki tiktok-uploader
+          echo '[{"name": "sessionid", "value": "'$TIKTOK_SESSION_ID'", "domain": ".tiktok.com", "path": "/"}]' > tiktok_cookies.json
+      - name: Run Bot
+        env:
+          TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
+          TIKTOK_SESSION_ID: ${{ secrets.TIKTOK_SESSION_ID }}
+        run: python src/main.py
+      - name: Commit History
+        run: |
+          git config --local user.email "bot@github.com"
+          git config --local user.name "ShortsBot"
+          git add assets/used_ids.txt
+          git commit -m "Update history [skip ci]" || echo "No changes"
+          git push

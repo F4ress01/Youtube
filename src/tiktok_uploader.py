@@ -1,9 +1,8 @@
 import os
-import json
 from tiktok_uploader.upload import upload_video
 
 def upload_to_tiktok(video_path, data):
-    """Przesyła wideo na TikToka używając sessionid."""
+    """Przesyła wideo na TikToka używając sessionid i Playwrighta."""
     session_id = os.getenv("TIKTOK_SESSION_ID")
     
     if not session_id:
@@ -16,8 +15,8 @@ def upload_to_tiktok(video_path, data):
         # Budujemy opis z hashtagami
         description = f"{data['title']} #fyp #facts #ai #knowledge"
         
-        # Przesyłamy film
-        # Używamy ścieżki do plików cookies stworzonej w workflow
+        # Kluczowe ustawienie: browser='chromium' (Playwright)
+        # headless=True jest wymagane na serwerze bez monitora
         upload_video(
             video_path,
             description=description,
