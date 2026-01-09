@@ -9,22 +9,18 @@ def is_within_window():
         return True
     poland_tz = timezone(timedelta(hours=1)) # UTC+1
     now = datetime.now(poland_tz)
-    allowed_hours = [0, 10, 20]
-    print(f"[TIME] Poland Time: {now.strftime('%H:%M')}")
-    if now.hour in allowed_hours and now.minute <= 15:
-        return True
-    return False
+    return now.hour in [0, 10, 20] and now.minute <= 10
 
 def main():
     if not is_within_window():
-        print("[SKIP] Waiting for the next slot (00:00, 10:00, 20:00).")
+        print("[SKIP] Waiting for 00:00, 10:00 or 20:00 Poland time.")
         return
     try:
         data = generate_content()
         video_path = create_video(data)
         upload_to_youtube(video_path, data)
     except Exception as e:
-        print(f"[ERROR] {e}")
+        print(f"[CRITICAL ERROR] {e}")
 
 if __name__ == "__main__":
     main()

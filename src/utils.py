@@ -4,56 +4,38 @@ import os
 import requests
 
 THEMES = {
-    "ANIMALS": ["A shrimp's heart is in its head.", "Snails can sleep for 3 years.", "Sloths hold breath longer than dolphins."],
-    "SPACE": ["Space is silent.", "Venus is hotter than Mercury.", "Neutron stars spin 600 times per second."],
-    "HUMAN": ["Heart beats 100k times a day.", "Nose remembers 50k scents.", "Small intestine is 4x your height."]
+    "ANIMALS": ["A shrimp's heart is in its head.", "Snails can sleep for 3 years.", "Sloths hold breath longer than dolphins.", "Gorillas burp when happy.", "A group of flamingos is a flamboyance."],
+    "SPACE": ["Space is silent.", "Venus is hotter than Mercury.", "Neutron stars spin 600 times per second.", "One day on Venus is longer than a year.", "Moon footprints last millions of years."],
 }
-
-# Pula hashtagów do losowania
-TAGS_POOL = ["#shorts", "#facts", "#ai", "#knowledge", "#mindblowing", "#dailyfacts", "#education", "#viral"]
 
 def get_ai_facts():
     history_file = "assets/used_ids.txt"
     if not os.path.exists(history_file):
         os.makedirs("assets", exist_ok=True)
         with open(history_file, 'w') as f: f.write("")
-    
-    with open(history_file, "r") as f:
-        used = set(f.read().splitlines())
+    with open(history_file, "r") as f: used = set(f.read().splitlines())
 
-    facts = []
-    category = "GENERAL"
-
+    facts, cat = [], "GENERAL"
     try:
-        # Próba pobrania 10 faktów z API
-        for _ in range(10):
+        for _ in range(12):
             r = requests.get("https://uselessfacts.jsph.pl/random.json?language=en", timeout=5)
             if r.status_code == 200:
-                text = r.json()['text']
-                h = hashlib.md5(text.encode()).hexdigest()
+                txt = r.json()['text']
+                h = hashlib.md5(txt.encode()).hexdigest()
                 if h not in used:
-                    facts.append(text)
-                    used.add(h)
+                    facts.append(txt); used.add(h)
                     with open(history_file, "a") as hf: hf.write(h + "\n")
             if len(facts) >= 5: break
-    except:
-        pass
+    except: pass
 
     if len(facts) < 5:
-        category = random.choice(list(THEMES.keys()))
-        all_theme_facts = THEMES[category]
-        available = [f for f in all_theme_facts if hashlib.md5(f.encode()).hexdigest() not in used]
-        facts = random.sample(available, 5) if len(available) >= 5 else random.sample(all_theme_facts, 5)
+        cat = random.choice(list(THEMES.keys()))
+        avail = [f for f in THEMES[cat] if hashlib.md5(f.encode()).hexdigest() not in used]
+        facts = random.sample(avail, 5) if len(avail) >= 5 else random.sample(THEMES[cat], 5)
+    
+    return cat, facts[:5]
 
-    return category, facts[:5]
-
-def get_unique_metadata(category):
-    """Generuje unikalny tytuł i hashtagi dla każdego filmu"""
-    intros = ["Mind-blowing", "Shocking", "Unbelievable", "Hidden", "Crazy"]
-    titles = [
-        f"{random.choice(intros)} Facts about {category}!",
-        f"5 {category} Facts You Didn't Know!",
-        f"Wait until you hear these {category} facts!"
-    ]
-    selected_tags = random.sample(TAGS_POOL, 4)
-    return random.choice(titles), " ".join(selected_tags)
+def get_unique_metadata(cat):
+    titles = [f"5 Amazing {cat} Facts!", f"Shocking {cat} Facts!", f"Did you know this about {cat}?"]
+    tags = ["#shorts", "#facts", "#ai", "#knowledge", "#viral"]
+    return random.choice(titles), " ".join(random.sample(tags, 4))

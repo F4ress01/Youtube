@@ -2,74 +2,46 @@ name: YouTube Shorts Automation
 
 on:
   schedule:
-    # Uruchamia się o każdej pełnej godzinie. 
-    # Skrypt Python sam sprawdzi, czy jest 00:00, 10:00 lub 20:00 czasu polskiego.
-    - cron: '0 * * * *'
+    - cron: '0 * * * *' # Co godzinę
   workflow_dispatch:
-    # Pozwala na ręczne uruchomienie bota w dowolnym momencie.
     inputs:
       test_mode:
-        description: 'Set to true to bypass time check and upload now'
-        required: false
+        description: 'Set true to upload now'
         default: 'false'
 
 jobs:
-  process-and-upload:
+  automation:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Wymagane, aby bot mógł zapisywać historię faktów w used_ids.txt
-    
+      contents: write
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Setup Python 3.11
+      - uses: actions/checkout@v3
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
           cache: 'pip'
-
-      - name: Install System Dependencies
+      - name: Install System Deps
         run: |
-          sudo apt-get update
-          # ffmpeg do montażu, fonts-quicksand dla nowoczesnej, obłej czcionki (bubble font)
-          sudo apt-get install -y ffmpeg fonts-quicksand 
-
-      - name: Install Python Dependencies
-        run: |
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            # Jeśli plik nie istnieje, instalujemy podstawowe paczki
-            pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 edge-tts requests gTTS numpy
-          fi
-
+          sudo apt update
+          sudo apt install -y ffmpeg fonts-quicksand
+      - name: Install Python Deps
+        run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 edge-tts requests gTTS numpy
       - name: Restore Secrets
         env:
-          # Przekazujemy dane przez env, aby zachować poprawne formatowanie cudzysłowów w JSON
           TOKEN_DATA: ${{ secrets.YOUTUBE_TOKEN_JSON }}
           CLIENT_DATA: ${{ secrets.CLIENT_SECRETS_JSON }}
         run: |
           echo "$TOKEN_DATA" > token.json
           echo "$CLIENT_DATA" > client_secrets.json
-
-      - name: Run Automation Bot
+      - name: Run Bot
         env:
-          # Pobieramy wartość test_mode z ręcznego uruchomienia lub domyślnie false
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
         run: python src/main.py
-
-      - name: Persist Used Facts History
+      - name: Commit History
         run: |
-          # Konfiguracja Gita, aby mógł wysłać zaktualizowany plik used_ids.txt
           git config --local user.email "bot@github.com"
           git config --local user.name "ShortsBot"
-          
-          # Sprawdź czy plik used_ids.txt w ogóle uległ zmianie
           git add assets/used_ids.txt
-          if git diff --staged --quiet; then
-            echo "No changes in facts history."
-          else
-            git commit -m "Update facts history [skip ci]"
-            git push
-          fi
+          git commit -m "Update history [skip ci]" || echo "No changes"
+          git push
