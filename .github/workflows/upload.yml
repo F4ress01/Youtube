@@ -2,7 +2,7 @@ name: YouTube Shorts Automation
 
 on:
   schedule:
-    - cron: '0 0,10,20 * * *'
+    - cron: '0 * * * *' # Sprawdza co godzinę
   workflow_dispatch:
     inputs:
       test_mode:
@@ -16,19 +16,15 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v3
-
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
           cache: 'pip'
-
       - name: Install System Deps
         run: sudo apt update && sudo apt install -y ffmpeg
-
       - name: Install Python Deps
         run: pip install -r requirements.txt
-
       - name: Restore Secrets
         env:
           TOKEN_DATA: ${{ secrets.YOUTUBE_TOKEN_JSON }}
@@ -36,12 +32,10 @@ jobs:
         run: |
           echo "$TOKEN_DATA" > token.json
           echo "$CLIENT_DATA" > client_secrets.json
-
       - name: Run Bot
         env:
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
         run: python src/main.py
-
       - name: Commit History
         run: |
           git config --local user.email "bot@github.com"

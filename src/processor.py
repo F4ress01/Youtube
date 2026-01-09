@@ -6,74 +6,70 @@ import subprocess
 from gtts import gTTS
 from utils import get_ai_facts, get_random_script_meta
 
-def format_timestamp(ms):
+def format_timestamp_ass(ms):
+    """Formatuje czas dla standardu ASS (H:MM:SS.cs)"""
     seconds, ms = divmod(int(ms), 1000)
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
-    return f"{hours:02}:{minutes:02}:{seconds:02},{ms:03}"
+    centiseconds = ms // 10
+    return f"{hours}:{minutes:02}:{seconds:02}.{centiseconds:02}"
 
 def get_audio_duration(file_path):
     cmd = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{file_path}\""
     return float(subprocess.check_output(cmd, shell=True).decode().strip())
 
-def get_weighted_timestamps(text, duration_ms):
-    words = text.split()
-    total_chars = sum(len(w) for w in words)
-    ms_per_char = duration_ms / total_chars
-    boundaries = []
-    current_time = 0
-    for word in words:
-        boundaries.append({"start": current_time, "text": word})
-        current_time += (len(word) * ms_per_char)
-    return boundaries
-
-def create_srt_chunks(word_boundaries, max_chars=18):
-    srt = ""
-    idx = 1
-    i = 0
-    while i < len(word_boundaries):
-        chunk = []
-        chars = 0
-        start_t = word_boundaries[i]['start']
-        while i < len(word_boundaries) and len(chunk) < 3:
-            w_text = word_boundaries[i]['text']
-            if chars + len(w_text) > max_chars and len(chunk) > 0: break
-            chunk.append(word_boundaries[i]); chars += len(w_text) + 1; i += 1
-        
-        end_t = word_boundaries[i]['start'] if i < len(word_boundaries) else chunk[-1]['start'] + 600
+def create_ass_file(word_boundaries, filename="subs.ass"):
+    """Tworzy plik ASS z animacjami pojawiania się (fading)"""
+    header = (
+        "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        "Style: Default,Arial,70,&H0000FFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3,1,10,120,120,400,1\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
+    
+    events = ""
+    words_per_chunk = 3
+    for i in range(0, len(word_boundaries), words_per_chunk):
+        chunk = word_boundaries[i:i + words_per_chunk]
+        start_t = format_timestamp_ass(chunk[0]['start'])
+        if i + words_per_chunk < len(word_boundaries):
+            end_t = format_timestamp_ass(word_boundaries[i + words_per_chunk]['start'])
+        else:
+            end_t = format_timestamp_ass(chunk[-1]['start'] + 600)
+            
         text = " ".join([w['text'] for w in chunk])
-        if len(text) > 12 and " " in text:
-            m = len(text)//2
-            split = text.find(' ', m)
-            if split != -1: text = text[:split] + "\\N" + text[split+1:]
+        # {\fad(200,200)} - 200ms pojawiania się i 200ms znikania
+        events += f"Dialogue: 0,{start_t},{end_t},Default,,0,0,0,,{{\\fad(200,200)}}{text}\n"
         
-        srt += f"{idx}\n{format_timestamp(start_t)} --> {format_timestamp(end_t)}\n{text}\n\n"
-        idx += 1
-    return srt
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(header + events)
 
 async def process_tts(text):
-    audio_p, subs_p = "output.mp3", "subs.srt"
+    audio_path, subs_path = "output.mp3", "subs.ass"
     try:
-        communicate = edge_tts.Communicate(text, "en-US-GuyNeural", rate="+15%")
+        communicate = edge_tts.Communicate(text, "en-US-GuyNeural", rate="+12%")
         wb = []
-        with open(audio_p, "wb") as f:
+        with open(audio_path, "wb") as f:
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio": f.write(chunk["data"])
                 elif chunk["type"] == "WordBoundary":
                     wb.append({"start": chunk["offset"]//10000, "text": chunk["text"]})
         if wb:
-            with open(subs_p, "w", encoding="utf-8") as f:
-                f.write(create_srt_chunks(wb)); f.flush(); os.fsync(f.fileno())
-            return audio_p, subs_p
+            create_ass_file(wb, subs_path)
+            return audio_path, subs_path
     except: pass
 
+    # gTTS Fallback
     tts = gTTS(text=text, lang='en')
-    tts.save(audio_p)
-    duration_ms = get_audio_duration(audio_p) * 1000
-    with open(subs_p, "w", encoding="utf-8") as f:
-        f.write(create_srt_chunks(get_weighted_timestamps(text, duration_ms)))
-        f.flush(); os.fsync(f.fileno())
-    return audio_p, subs_p
+    tts.save(audio_path)
+    dur = get_audio_duration(audio_path) * 1000
+    words = text.split()
+    ms_per_word = dur / len(words)
+    wb = [{"start": i * ms_per_word, "text": w} for i, w in enumerate(words)]
+    create_ass_file(wb, subs_path)
+    return audio_path, subs_path
 
 def generate_content():
     cat, facts = get_ai_facts()
