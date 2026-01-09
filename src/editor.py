@@ -3,12 +3,13 @@ import random
 import os
 
 def create_video(data):
-    bg_dir = "assets/backgrounds/"
+    current_dir = os.getcwd()
+    bg_dir = os.path.join(current_dir, "assets/backgrounds/")
     bg_video = os.path.join(bg_dir, random.choice(os.listdir(bg_dir)))
     subs_file = "subs.ass"
     output = "final_shorts.mp4"
 
-    # Używamy prostego filtra subtitles, bo style i animacje (fad) są w subs.ass
+    # force_original_aspect_ratio=increase zapewnia, że nie będzie czarnych pasów
     vf = (
         f"scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
         f"setsar=1,setdar=9/16,subtitles={subs_file}"
@@ -16,7 +17,7 @@ def create_video(data):
 
     cmd = [
         "ffmpeg", "-y",
-        "-stream_loop", "-1",  # Zapętla tło w razie potrzeby
+        "-stream_loop", "-1",
         "-i", bg_video,
         "-i", "output.mp3",
         "-vf", vf,
@@ -28,6 +29,6 @@ def create_video(data):
         output
     ]
     
-    print(f"[EDITOR] Rendering Shorts with Fade Animations...")
+    print(f"[EDITOR] Rendering stylized Shorts with centered text...")
     subprocess.run(cmd, check=True)
     return output
