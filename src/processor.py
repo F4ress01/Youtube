@@ -13,26 +13,29 @@ def format_timestamp(milliseconds):
 def create_srt(word_boundaries):
     srt_content = ""
     for i, boundary in enumerate(word_boundaries):
-        start = format_timestamp(boundary['start'] // 10000) # Convert 100ns to ms
+        start = format_timestamp(boundary['start'] // 10000)
         if i < len(word_boundaries) - 1:
             end = format_timestamp(word_boundaries[i+1]['start'] // 10000)
         else:
             end = format_timestamp((boundary['start'] // 10000) + 500)
-        
         srt_content += f"{i+1}\n{start} --> {end}\n{boundary['text']}\n\n"
     return srt_content
 
-async def process_tts(text, voice, retries=3):
+async def process_tts(text, preferred_voice):
     audio_path = "output.mp3"
     subs_path = "subs.srt"
     
-    if not text.strip():
-        raise ValueError("The script text is empty!")
+    # Lista głosów do wypróbowania w razie błędu
+    fallback_voices = [
+        preferred_voice,
+        "en-US-AriaNeural",
+        "en-US-GuyNeural",
+        "en-GB-SoniaNeural",
+        "en-US-ChristopherNeural"
+    ]
 
-    print(f"[TTS] Using voice: {voice}")
-    print(f"[TTS] Text length: {len(text)} characters")
-
-    for attempt in range(retries):
+    for voice in fallback_voices:
+        print(f"[TTS] Attempting with voice: {voice}")
         try:
             communicate = edge_tts.Communicate(text, voice)
             word_boundaries = []
@@ -49,47 +52,33 @@ async def process_tts(text, voice, retries=3):
                             "text": chunk["text"]
                         })
             
-            if not audio_received:
-                raise Exception("API returned success but no audio data was found.")
-                
-            srt_data = create_srt(word_boundaries)
-            with open(subs_path, "w", encoding="utf-8") as f:
-                f.write(srt_data)
+            if audio_received and word_boundaries:
+                srt_data = create_srt(word_boundaries)
+                with open(subs_path, "w", encoding="utf-8") as f:
+                    f.write(srt_data)
+                print(f"[TTS] Success with voice: {voice}")
+                return audio_path, subs_path
             
-            print("[TTS] Audio and subtitles generated successfully.")
-            return audio_path, subs_path
-
         except Exception as e:
-            print(f"[TTS] Attempt {attempt + 1} failed: {e}")
-            if attempt < retries - 1:
-                await asyncio.sleep(2) # Wait before retry
-            else:
-                raise e
+            print(f"[TTS] Voice {voice} failed: {e}")
+            continue # Przejdź do następnego głosu
+
+    raise Exception("All TTS voices failed to receive audio.")
 
 def generate_content():
     fact = get_unique_fact()
-    
-    # Validation: Ensure fact is not None or empty
     if not fact:
-        fact = "The human brain has enough memory to hold three million hours of television."
-        print("[WARNING] Fact pool returned empty. Using fallback fact.")
+        fact = "The static on your TV is actually leftover radiation from the Big Bang."
 
-    voices = [
-        "en-US-GuyNeural", 
-        "en-GB-GeorgeNeural", 
-        "en-US-ChristopherNeural", 
-        "en-GB-RyanNeural"
-    ]
+    # Start with a random voice from your preferred list
+    initial_voice = random.choice(["en-US-GuyNeural", "en-GB-GeorgeNeural"])
+    script = f"Did you know? {fact} Like and follow for more!"
     
-    voice = random.choice(voices)
-    script = f"Did you know? {fact} Subscribe for more!"
-    
-    # Run async process
-    audio, subs = asyncio.run(process_tts(script, voice))
+    audio, subs = asyncio.run(process_tts(script, initial_voice))
     
     return {
         "script": script,
         "audio": audio,
         "subs": subs,
-        "title": f"Amazing Fact! #shorts #facts"
+        "title": f"Mind-Blowing Fact! #shorts #facts"
     }
