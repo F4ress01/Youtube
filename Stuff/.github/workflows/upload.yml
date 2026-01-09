@@ -1,0 +1,47 @@
+name: YouTube Shorts Automated Bot
+
+on:
+  schedule:
+    - cron: '0 0,10,20 * * *' # UTC Times
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Set to true for immediate upload'
+        default: 'false'
+
+jobs:
+  run-automation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install System Deps
+        run: sudo apt update && sudo apt install -y ffmpeg
+
+      - name: Install Python Deps
+        run: pip install -r requirements.txt
+
+      - name: Inject Secrets
+        run: |
+          echo "${{ secrets.YOUTUBE_TOKEN_JSON }}" > token.json
+          echo "${{ secrets.CLIENT_SECRETS_JSON }}" > client_secrets.json
+
+      - name: Run Bot
+        env:
+          TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
+        run: python src/main.py
+
+      - name: Save Persistent Data
+        run: |
+          git config --local user.email "bot@github.com"
+          git config --local user.name "ShortsBot"
+          git add assets/used_ids.txt
+          git commit -m "Update history [skip ci]" || exit 0
+          git push

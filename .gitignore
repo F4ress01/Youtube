@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+output.mp3
+subs.srt
+final_shorts.mp4
+
+# Secrets (DO NOT UPLOAD)
+client_secrets.json
+token.json
+auth.py
