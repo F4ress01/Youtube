@@ -2,7 +2,7 @@ name: YouTube Shorts Automation
 
 on:
   schedule:
-    - cron: '0 * * * *' # Co godzinę
+    - cron: '0 * * * *' # Sprawdza co godzinę (00:00, 10:00, 20:00 PL)
   workflow_dispatch:
     inputs:
       test_mode:
@@ -16,19 +16,23 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v3
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
           cache: 'pip'
+
       - name: Install System Deps
         run: |
           sudo apt update
           sudo apt install -y ffmpeg fonts-quicksand
+
       - name: Install Python Dependencies
         run: |
-          pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 edge-tts requests gTTS numpy tiktok-uploader
-          # Instalacja przeglądarki dla TikToka
+          # DODANO 'playwright' do listy pip
+          pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 edge-tts requests gTTS numpy tiktok-uploader playwright
+          # Instalacja przeglądarki Chromium potrzebnej dla TikToka
           python -m playwright install chromium
           python -m playwright install-deps chromium
 
@@ -40,7 +44,7 @@ jobs:
         run: |
           echo "$TOKEN_DATA" > token.json
           echo "$CLIENT_DATA" > client_secrets.json
-          # Tworzymy plik cookies dla TikToka
+          # Tworzymy plik cookies dla biblioteki tiktok-uploader
           echo '[{"name": "sessionid", "value": "'$TIKTOK_SESSION_ID'", "domain": ".tiktok.com", "path": "/"}]' > tiktok_cookies.json
 
       - name: Run Bot
@@ -48,10 +52,12 @@ jobs:
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
           TIKTOK_SESSION_ID: ${{ secrets.TIKTOK_SESSION_ID }}
         run: python src/main.py
+
       - name: Commit History
         run: |
           git config --local user.email "bot@github.com"
           git config --local user.name "ShortsBot"
           git add assets/used_ids.txt
-          git commit -m "Update history [skip ci]" || echo "No changes"
-          git push
+          # Commituj tylko jeśli plik się zmienił
+          git commit -m "Update facts history [skip ci]" || echo "No changes to history"
+          git push || echo "Nothing to push"
