@@ -2,24 +2,20 @@ name: YouTube Shorts Automation
 
 on:
   schedule:
-    - cron: '0 0 * * *'   # 00:00 UTC
-    - cron: '0 10 * * *'  # 10:00 UTC
-    - cron: '0 20 * * *'  # 20:00 UTC
+    - cron: '0 0,10,20 * * *'
   workflow_dispatch:
     inputs:
       test_mode:
-        description: 'Set to true to bypass time check'
-        required: false
+        description: 'Set true to bypass time check'
         default: 'false'
 
 jobs:
-  process-and-upload:
+  automation:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -27,15 +23,14 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install FFmpeg
+      - name: Install System Deps
         run: sudo apt update && sudo apt install -y ffmpeg
 
-      - name: Install Dependencies
+      - name: Install Python Deps
         run: pip install -r requirements.txt
 
       - name: Restore Secrets
         env:
-          # Przekazujemy sekrety przez zmienne środowiskowe, aby zachować cudzysłowy
           TOKEN_DATA: ${{ secrets.YOUTUBE_TOKEN_JSON }}
           CLIENT_DATA: ${{ secrets.CLIENT_SECRETS_JSON }}
         run: |
@@ -47,10 +42,10 @@ jobs:
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
         run: python src/main.py
 
-      - name: Commit Progress
+      - name: Commit History
         run: |
           git config --local user.email "bot@github.com"
           git config --local user.name "ShortsBot"
           git add assets/used_ids.txt
-          git commit -m "Log used content [skip ci]" || echo "No changes"
+          git commit -m "Update facts history [skip ci]" || echo "No changes"
           git push

@@ -4,7 +4,7 @@ import edge_tts
 import os
 import subprocess
 from gtts import gTTS
-from utils import get_unique_fact
+from utils import get_ai_facts, get_random_script_meta
 
 def format_timestamp(ms):
     seconds, ms = divmod(int(ms), 1000)
@@ -13,97 +13,62 @@ def format_timestamp(ms):
     return f"{hours:02}:{minutes:02}:{seconds:02},{ms:03}"
 
 def get_audio_duration(file_path):
-    """Gets audio duration using ffprobe"""
     cmd = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{file_path}\""
-    duration = subprocess.check_output(cmd, shell=True).decode().strip()
-    return float(duration)
+    return float(subprocess.check_output(cmd, shell=True).decode().strip())
 
 def create_pseudo_srt(text, duration_sec):
-    """Creates subtitles for gTTS by distributing words over duration"""
     words = text.split()
-    word_count = len(words)
-    time_per_word = (duration_sec * 1000) / word_count
-    
-    srt_content = ""
-    for i, word in enumerate(words):
-        start = i * time_per_word
-        end = (i + 1) * time_per_word
-        srt_content += f"{i+1}\n{format_timestamp(start)} --> {format_timestamp(end)}\n{word}\n\n"
-    return srt_content
+    avg_dur = (duration_sec * 1000) / len(words)
+    srt = ""
+    for i, w in enumerate(words):
+        start = i * avg_dur
+        end = (i + 1) * avg_dur
+        srt += f"{i+1}\n{format_timestamp(start)} --> {format_timestamp(end)}\n{w}\n\n"
+    return srt
 
 async def process_tts(text):
-    current_dir = os.getcwd()
-    audio_path = os.path.join(current_dir, "output.mp3")
-    subs_path = os.path.join(current_dir, "subs.srt")
+    audio_path = os.path.join(os.getcwd(), "output.mp3")
+    subs_path = os.path.join(os.getcwd(), "subs.srt")
     
-    # Attempt Edge-TTS (Primary)
-    voices = ["en-US-GuyNeural", "en-US-AriaNeural", "en-GB-ThomasNeural", "en-GB-SoniaNeural"]
-    for voice in voices:
-        print(f"[TTS] Trying Edge-TTS with voice: {voice}")
-        try:
-            communicate = edge_tts.Communicate(text, voice)
-            word_boundaries = []
-            audio_received = False
-            
-            with open(audio_path, "wb") as f:
-                async for chunk in communicate.stream():
-                    if chunk["type"] == "audio":
-                        f.write(chunk["data"])
-                        audio_received = True
-                    elif chunk["type"] == "WordBoundary":
-                        word_boundaries.append({"start": chunk["offset"], "text": chunk["text"]})
-            
-            if audio_received and word_boundaries:
-                srt_content = ""
-                for i, b in enumerate(word_boundaries):
-                    start = b['start'] // 10000
-                    if i < len(word_boundaries)-1:
-                        end = word_boundaries[i+1]['start'] // 10000
-                    else:
-                        end = start + 400
-                    srt_content += f"{i+1}\n{format_timestamp(start)} --> {format_timestamp(end)}\n{b['text']}\n\n"
-                
-                with open(subs_path, "w", encoding="utf-8") as f:
-                    f.write(srt_content)
-                    f.flush()
-                    os.fsync(f.fileno())
-                
-                print("[TTS] Edge-TTS Success.")
-                return "output.mp3", "subs.srt"
-        except Exception as e:
-            print(f"[TTS] Edge-TTS voice {voice} failed: {e}")
-            continue
-
-    # FALLBACK: Use Google TTS
-    print("[TTS] Edge-TTS failed or blocked. Using Google TTS Fallback...")
+    # Edge-TTS
     try:
-        tts = gTTS(text=text, lang='en', tld='com')
-        tts.save(audio_path)
+        communicate = edge_tts.Communicate(text, "en-US-GuyNeural", rate="+4%")
+        word_boundaries = []
+        with open(audio_path, "wb") as f:
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio": f.write(chunk["data"])
+                elif chunk["type"] == "WordBoundary":
+                    word_boundaries.append({"start": chunk["offset"]//10000, "text": chunk["text"]})
         
-        duration = get_audio_duration(audio_path)
-        srt_content = create_pseudo_srt(text, duration)
-        
-        with open(subs_path, "w", encoding="utf-8") as f:
-            f.write(srt_content)
-            f.flush()
-            os.fsync(f.fileno())
-            
-        print("[TTS] Google TTS Success.")
-        return "output.mp3", "subs.srt"
-    except Exception as e:
-        raise Exception(f"Critical Error: Both TTS engines failed. {e}")
+        if word_boundaries:
+            srt_content = ""
+            for i, b in enumerate(word_boundaries):
+                start = b['start']
+                end = word_boundaries[i+1]['start'] if i < len(word_boundaries)-1 else start + 400
+                srt_content += f"{i+1}\n{format_timestamp(start)} --> {format_timestamp(end)}\n{b['text']}\n\n"
+            with open(subs_path, "w", encoding="utf-8") as f:
+                f.write(srt_content)
+                f.flush()
+                os.fsync(f.fileno())
+            return "output.mp3", "subs.srt"
+    except:
+        print("[TTS] Edge-TTS failed, using gTTS...")
+
+    # gTTS Fallback
+    tts = gTTS(text=text, lang='en')
+    tts.save(audio_path)
+    duration = get_audio_duration(audio_path)
+    with open(subs_path, "w", encoding="utf-8") as f:
+        f.write(create_pseudo_srt(text, duration))
+        f.flush()
+        os.fsync(f.fileno())
+    return "output.mp3", "subs.srt"
 
 def generate_content():
-    fact = get_unique_fact()
-    if not fact:
-        fact = "The human brain has the same consistency as tofu."
+    category, facts = get_ai_facts()
+    intro, hook, outro = get_random_script_meta(category)
     
-    script = f"Did you know? {fact} Like and follow for more!"
-    audio, subs = asyncio.run(process_tts(script))
+    full_text = f"{intro} . . . Number 1: {facts[0]} . . . Number 2: {facts[1]} . . . {hook} . . . Number 3: {facts[2]} . . . Number 4: {facts[3]} . . . Number 5: {facts[4]} . . . {outro}"
     
-    return {
-        "script": script,
-        "audio": audio,
-        "subs": subs,
-        "title": f"Amazing Fact! #shorts #facts"
-    }
+    audio, subs = asyncio.run(process_tts(full_text))
+    return {"script": full_text, "audio": audio, "subs": subs, "title": f"5 Amazing Facts about {category}! #shorts #ai"}
